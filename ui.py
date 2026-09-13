@@ -548,7 +548,6 @@ def normalise_profile_showcase(raw):
     periods=("Week","Month","Year","All time"); result={}
     for key in ("artists","songs","albums"):
         src=raw.get(key) or {}; result[key]={}
-        # 0.10.0 and older only allowed one period per category
         if isinstance(src,dict) and ("period" in src or "items" in src or "visible" in src):
             old_period=src.get("period","All time") if src.get("period") in periods else "All time"
             for period in periods:result[key][period]={"visible":False,"items":[]}
@@ -1837,7 +1836,6 @@ class MainWindow(QMainWindow):
         kind={"Artists":"artist","Albums":"album","Songs":"song"}[self.kind.currentText()]
         rows=self.app.db.top(kind,self.period.currentText(),50)
 
-        # live stats used to rebuild every card every second which absolutely murdered Qt lol
         if live and rows and len(rows)==len(self.stat_cards):
             row_keys=[str(row["item_key"]) for row in rows]
             card_keys=[str(getattr(card,"item_key",None)) for card in self.stat_cards]
@@ -2222,7 +2220,6 @@ class SpotifyApp:
         def show_main():
             self.window.show(); self.window.update_overlay_button()
             QApplication.instance().setQuitOnLastWindowClosed(True)
-            # normal Amethyst playback is Windows Media now. no Spotify API login needed.
             if not self.guest:QTimer.singleShot(900,self.begin_lastfm_startup)
         if self.splash and hasattr(self.splash,"finish"):
             self.splash.set_status("Ready")
