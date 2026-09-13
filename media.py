@@ -2,6 +2,8 @@ import asyncio
 import ctypes
 import threading
 import time
+from winrt.windows.storage.streams import Buffer, DataReader, InputStreamOptions
+from winrt.windows.media import MediaPlaybackAutoRepeatMode
 VK_MEDIA_NEXT_TRACK = 0xB0
 VK_MEDIA_PREV_TRACK = 0xB1
 VK_MEDIA_PLAY_PAUSE = 0xB3
@@ -84,7 +86,6 @@ class WindowsMedia:
         thumb=getattr(props,"thumbnail",None)
         if not thumb:return b""
         try:
-            from winrt.windows.storage.streams import Buffer, DataReader, InputStreamOptions
             stream=await thumb.open_read_async(); reported=max(0,int(getattr(stream,"size",0) or 0)); capacity=min(reported or 5*1024*1024,5*1024*1024)
             buffer=Buffer(capacity); await stream.read_async(buffer,buffer.capacity,InputStreamOptions.READ_AHEAD)
             if buffer.length<=0:return b""
@@ -141,7 +142,6 @@ class WindowsMedia:
         session=self._spotify_session()
         if session is None:return False
         try:
-            from winrt.windows.media import MediaPlaybackAutoRepeatMode
             values={
                 "off":getattr(MediaPlaybackAutoRepeatMode,"NONE",getattr(MediaPlaybackAutoRepeatMode,"none",0)),
                 "track":getattr(MediaPlaybackAutoRepeatMode,"TRACK",getattr(MediaPlaybackAutoRepeatMode,"track",1)),
