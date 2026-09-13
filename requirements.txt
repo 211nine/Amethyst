@@ -1,0 +1,8 @@
+PySide6
+Pillow
+requests
+supabase
+keyring
+winrt-Windows.Media.Control
+winrt-Windows.Media
+winrt-Windows.Storage.Streams
