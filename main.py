@@ -1,15 +1,39 @@
 import sys,importlib
+from pathlib import Path
+from urllib.request import Request,urlopen
+from urllib.parse import urlparse
 from PySide6.QtCore import Qt,QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication,QWidget,QVBoxLayout,QLabel,QProgressBar,QFrame,QHBoxLayout
 
+def resource_path(name):
+    base=Path(getattr(sys,"_MEIPASS",Path(__file__).resolve().parent))
+    return base/name
+
+def first_launch_icon(data_dir,github_repo):
+    path=Path(data_dir)/"icon.png"
+    try:
+        if path.exists():
+            data=path.read_bytes()
+            if 8<=len(data)<=2*1024*1024 and data[:8]==b"\x89PNG\r\n\x1a\n":return path
+            path.unlink(missing_ok=True)
+        url=f"https://raw.githubusercontent.com/{github_repo}/main/icon.png"
+        request=Request(url,headers={"User-Agent":"Amethyst"})
+        with urlopen(request,timeout=6) as response:
+            final=urlparse(response.geturl())
+            if final.scheme!="https" or (final.hostname or "").lower()!="raw.githubusercontent.com":raise ValueError("bad icon host")
+            data=response.read(2*1024*1024+1)
+        if len(data)>2*1024*1024 or data[:8]!=b"\x89PNG\r\n\x1a\n":raise ValueError("bad icon")
+        tmp=path.with_suffix(".tmp"); tmp.write_bytes(data); tmp.replace(path); return path
+    except Exception:return resource_path("icon.png")
+
 class LoadingScreen(QWidget):
-    def __init__(self,accent="#b64fff"):
-        super().__init__(); self.accent=accent; self.value=0; self.target=90; self.done_callback=None
+    def __init__(self,accent="#b64fff",icon_path=None):
+        super().__init__(); self.accent=accent; self.value=0; self.target=90; self.done_callback=None; self.icon_path=str(icon_path or resource_path("icon.png"))
         self.setFixedSize(500,225); self.setWindowFlags(Qt.FramelessWindowHint|Qt.WindowStaysOnTopHint); self.setAttribute(Qt.WA_TranslucentBackground,True); self.setObjectName("loadingScreen")
         outer=QVBoxLayout(self); outer.setContentsMargins(6,6,6,6); card=QFrame(); card.setObjectName("card"); card.setAttribute(Qt.WA_StyledBackground,True); outer.addWidget(card)
         layout=QVBoxLayout(card); layout.setContentsMargins(28,24,28,22); layout.setSpacing(11)
-        top=QHBoxLayout(); top.setSpacing(12); icon=QLabel(); icon.setFixedSize(42,42); icon.setPixmap(QIcon("icon.png").pixmap(42,42)); top.addWidget(icon)
+        top=QHBoxLayout(); top.setSpacing(12); icon=QLabel(); icon.setFixedSize(42,42); icon.setPixmap(QIcon(self.icon_path).pixmap(42,42)); top.addWidget(icon)
         words=QVBoxLayout(); words.setSpacing(1); title=QLabel("Amethyst"); title.setObjectName("title"); sub=QLabel("Starting up"); sub.setObjectName("small"); words.addWidget(title); words.addWidget(sub); top.addLayout(words); top.addStretch(); layout.addLayout(top)
         self.status=QLabel("Starting..."); self.status.setObjectName("status"); self.status.setWordWrap(True); layout.addWidget(self.status)
         row=QHBoxLayout(); row.setSpacing(10); self.bar=QProgressBar(); self.bar.setRange(0,1000); self.bar.setValue(0); self.bar.setTextVisible(False); row.addWidget(self.bar,1)
@@ -28,12 +52,13 @@ class LoadingScreen(QWidget):
     def finish_now(self):self.value=1000; self.target=1000; self.bar.setValue(1000); self.percent.setText("100%"); self.status.setText("Ready"); QApplication.processEvents(); self.close()
 
 if __name__=="__main__":
-    app=QApplication(sys.argv); app.setApplicationName("Amethyst"); app.setWindowIcon(QIcon("icon.png")); app.setQuitOnLastWindowClosed(False)
-    splash=LoadingScreen(); splash.show(); splash.move(splash.screen().availableGeometry().center()-splash.rect().center()); app.processEvents(); holder={}
+    from config import load_settings,app_version,github_repo,data_dir
+    app=QApplication(sys.argv); app.setApplicationName("Amethyst"); app.setQuitOnLastWindowClosed(False)
+    icon_path=first_launch_icon(data_dir,github_repo); app.setWindowIcon(QIcon(str(icon_path)))
+    splash=LoadingScreen(icon_path=icon_path); splash.show(); splash.move(splash.screen().availableGeometry().center()-splash.rect().center()); app.processEvents(); holder={}
     def load_ui():
         try:
             splash.set_status("Reading local settings..."); splash.set_target(8)
-            from config import load_settings,app_version,github_repo,data_dir
             settings=load_settings()
             deps=[("Pillow","PIL"),("requests","requests"),("keyring","keyring"),("Supabase","supabase"),("Windows media controls","winrt.windows.media.control")]
             for i,(name,module_name) in enumerate(deps):

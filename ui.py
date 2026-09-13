@@ -14,7 +14,7 @@ import re
 from difflib import SequenceMatcher
 from ctypes import wintypes
 from datetime import datetime
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 import requests
 from PIL import Image, ImageStat, ImageOps
 from PySide6.QtCore import Qt, QTimer, QPoint, Signal, QObject, QRectF, QAbstractNativeEventFilter, QEvent, QSize
@@ -90,25 +90,34 @@ def valid_image_bytes(data,max_pixels=25000000):
     except Exception:return False
 
 def download_image_bytes(url,max_bytes=2*1024*1024):
-    if not safe_image_url(url):return b""
+    current=str(url or "")
     try:
-        with requests.get(url,timeout=(4,8),stream=True,allow_redirects=False) as response:
-            response.raise_for_status()
-            content_type=str(response.headers.get("content-type") or "").lower()
-            if content_type and not content_type.startswith("image/"):return b""
+        for _ in range(5):
+            if not safe_image_url(current):return b""
+            response=requests.get(current,timeout=(4,8),stream=True,allow_redirects=False)
+            if response.status_code in (301,302,303,307,308):
+                location=response.headers.get("location") or ""; response.close()
+                current=urljoin(current,location)
+                if not safe_image_url(current):return b""
+                continue
             try:
-                size=int(response.headers.get("content-length") or 0)
-                if size>max_bytes:return b""
-            except Exception:pass
-            data=bytearray()
-            for chunk in response.iter_content(65536):
-                if not chunk:continue
-                data.extend(chunk)
-                if len(data)>max_bytes:return b""
-            data=bytes(data)
-            return data if valid_image_bytes(data) else b""
-    except Exception:
+                response.raise_for_status()
+                content_type=str(response.headers.get("content-type") or "").lower()
+                if content_type and not content_type.startswith("image/"):return b""
+                try:
+                    size=int(response.headers.get("content-length") or 0)
+                    if size>max_bytes:return b""
+                except Exception:pass
+                data=bytearray()
+                for chunk in response.iter_content(65536):
+                    if not chunk:continue
+                    data.extend(chunk)
+                    if len(data)>max_bytes:return b""
+                data=bytes(data)
+                return data if valid_image_bytes(data) else b""
+            finally:response.close()
         return b""
+    except Exception:return b""
 
 class Signals(QObject):
     art = Signal(bytes, str)

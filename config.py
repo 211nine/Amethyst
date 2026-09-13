@@ -1,7 +1,7 @@
 import os
 import json
 from pathlib import Path
-app_version = "0.11.20"
+app_version = "0.11.21"
 github_repo = "211nine/Amethyst"
 local_appdata = os.getenv("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
 data_dir = Path(local_appdata) / "Amethyst"
